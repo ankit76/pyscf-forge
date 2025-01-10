@@ -78,7 +78,6 @@ class AFQMC:
                     "mpi_prefix",
                     "nproc",
                     "script",
-                    "tmpdir",
                 ]
                 and not attr.startswith("__")
                 and not callable(getattr(self, attr))
