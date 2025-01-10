@@ -2,17 +2,22 @@ import argparse
 import pickle
 import time
 
-import config
 import h5py
 import numpy as np
+
+from pyscf.afqmc import config
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--use_gpu", action="store_true")
+    parser.add_argument("--use_mpi", action="store_true")
     args = parser.parse_args()
 
     if args.use_gpu:
         config.afqmc_config["use_gpu"] = True
+    if args.use_mpi:
+        assert config.afqmc_config["use_gpu"] is False, "Inter GPU MPI not supported."
+        config.afqmc_config["use_mpi"] = True
 
 config.setup_jax()
 MPI = config.setup_comm()
@@ -243,3 +248,4 @@ if __name__ == "__main__":
         print(f"ph_afqmc walltime: {end - init}", flush=True)
         np.savetxt("ene_err.txt", np.array([e_afqmc, err_afqmc]))
     comm.Barrier()
+    MPI.Finalize()

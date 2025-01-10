@@ -6,9 +6,10 @@ from typing import Any, List, Sequence, Tuple, Union
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
-import linalg_utils
 import numpy as np
 from jax import jit, jvp, lax, vjp, vmap
+
+from pyscf.afqmc import linalg_utils
 
 
 class wave_function(ABC):

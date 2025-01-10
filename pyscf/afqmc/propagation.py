@@ -7,11 +7,10 @@ from typing import Any, List, Optional, Sequence, Tuple, Union
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
-import linalg_utils
-import sr
-import wavefunctions
 from jax import jit, lax, random, vmap
-from wavefunctions import wave_function
+
+from pyscf.afqmc import linalg_utils, sr, wavefunctions
+from pyscf.afqmc.wavefunctions import wave_function
 
 
 @dataclass

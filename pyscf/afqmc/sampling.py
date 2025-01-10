@@ -4,11 +4,12 @@ from typing import Any, Tuple
 
 import jax
 import jax.numpy as jnp
-import linalg_utils
-from hamiltonian import hamiltonian
 from jax import checkpoint, jit, lax, random
-from propagation import propagator
-from wavefunctions import wave_function
+
+from pyscf.afqmc import linalg_utils
+from pyscf.afqmc.hamiltonian import hamiltonian
+from pyscf.afqmc.propagation import propagator
+from pyscf.afqmc.wavefunctions import wave_function
 
 
 @dataclass

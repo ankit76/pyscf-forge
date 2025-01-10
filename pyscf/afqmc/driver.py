@@ -3,15 +3,12 @@ import time
 from functools import partial
 from typing import List, Optional, Union
 
-import hamiltonian
 import jax
 import jax.numpy as jnp
 import numpy as np
-import propagation
-import sampling
-import stat_utils
-import wavefunctions
 from jax import dtypes, jvp, random, vjp
+
+from pyscf.afqmc import hamiltonian, propagation, sampling, stat_utils, wavefunctions
 
 print = partial(print, flush=True)
 
@@ -136,7 +133,7 @@ def afqmc(
 
         comm.Barrier()
         if rank == 0:
-            if n % (max(sampler_eq.n_blocks // 10, 1)) == 0:
+            if n % (max(sampler_eq.n_blocks // 5, 1)) == 0:
                 print(
                     f"# {n:5d}      {block_energy_n[0]:.9e}     {time.time() - init:.2e} ",
                     flush=True,
