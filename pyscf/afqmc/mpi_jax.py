@@ -5,7 +5,6 @@ import time
 import h5py
 import numpy as np
 
-from pyscf import __config__
 from pyscf.afqmc import config
 
 tmpdir = "."

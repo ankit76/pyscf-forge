@@ -8,7 +8,6 @@ import jax.numpy as jnp
 import numpy as np
 from jax import dtypes, jvp, random, vjp
 
-from pyscf import __config__
 from pyscf.afqmc import hamiltonian, propagation, sampling, stat_utils, wavefunctions
 
 print = partial(print, flush=True)
