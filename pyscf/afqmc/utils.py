@@ -7,9 +7,10 @@ import h5py
 import jax.numpy as jnp
 import numpy as np
 import scipy
-from pyscf import __config__, ao2mo, df, dft, lib, mcscf, scf
 from pyscf.cc.ccsd import CCSD
 from pyscf.cc.uccsd import UCCSD
+
+from pyscf import __config__, ao2mo, df, dft, lib, mcscf, scf
 
 print = partial(print, flush=True)
 
@@ -50,11 +51,12 @@ def modified_cholesky(mat: np.ndarray, max_error: float = 1e-6) -> np.ndarray:
 
 # prepare phaseless afqmc with mf trial
 def prep_afqmc(
-    mf_or_cc: Union[scf.uhf.UHF, scf.rhf.RHF, CCSD, UCCSD],
+    mf_or_cc: Union[scf.uhf.UHF, scf.rhf.RHF, scf.rohf.ROHF, CCSD, UCCSD],
     basis_coeff: Optional[np.ndarray] = None,
     norb_frozen: int = 0,
     chol_cut: float = 1e-5,
     integrals: Optional[dict] = None,
+    tmpdir: str = "./",
 ):
     """Prepare AFQMC calculation with mean field trial wavefunction. Writes integrals and mo coefficients to disk.
 
@@ -64,6 +66,7 @@ def prep_afqmc(
         norb_frozen (int, optional): Number of frozen orbitals. Not supported for custom integrals.
         chol_cut (float, optional): Cholesky decomposition cutoff.
         integrals (dict, optional): Dictionary of integrals in an orthonormal basis, {"h0": enuc, "h1": h1e, "h2": eri}.
+        tmpdir (str, optional): Temporary directory for saving integrals and mo coefficients. Defaults to "./".
     """
 
     print("#\n# Preparing AFQMC calculation")
@@ -89,7 +92,7 @@ def prep_afqmc(
             ci1a = np.array(cc.t1[0])
             ci1b = np.array(cc.t1[1])
             np.savez(
-                "amplitudes.npz",
+                tmpdir + "/amplitudes.npz",
                 ci1a=ci1a,
                 ci1b=ci1b,
                 ci2aa=ci2aa,
@@ -100,7 +103,7 @@ def prep_afqmc(
             ci2 = cc.t2 + np.einsum("ia,jb->ijab", np.array(cc.t1), np.array(cc.t1))
             ci2 = ci2.transpose(0, 2, 1, 3)
             ci1 = np.array(cc.t1)
-            np.savez("amplitudes.npz", ci1=ci1, ci2=ci2)
+            np.savez(tmpdir + "/amplitudes.npz", ci1=ci1, ci2=ci2)
     else:
         mf = mf_or_cc
 
@@ -226,7 +229,7 @@ def prep_afqmc(
         trial_coeffs[0] = uhfCoeffs[:, :nbasis]
         trial_coeffs[1] = uhfCoeffs[:, nbasis:]
         # np.savetxt("uhf.txt", uhfCoeffs)
-        np.savez("mo_coeff.npz", mo_coeff=trial_coeffs)
+        np.savez(tmpdir + "/mo_coeff.npz", mo_coeff=trial_coeffs)
 
     elif isinstance(mf, scf.rhf.RHF):
         q, _ = np.linalg.qr(
@@ -236,7 +239,7 @@ def prep_afqmc(
         )
         trial_coeffs[0] = q
         trial_coeffs[1] = q
-        np.savez("mo_coeff.npz", mo_coeff=trial_coeffs)
+        np.savez(tmpdir + "/mo_coeff.npz", mo_coeff=trial_coeffs)
 
     write_dqmc(
         h1e,
@@ -246,7 +249,7 @@ def prep_afqmc(
         nbasis,
         enuc,
         ms=mol.spin,
-        filename="FCIDUMP_chol",
+        filename=tmpdir + "/FCIDUMP_chol",
         mo_coeffs=trial_coeffs,
     )
 

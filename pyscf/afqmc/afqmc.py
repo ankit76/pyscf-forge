@@ -7,7 +7,7 @@ import numpy as np
 from pyscf.cc.ccsd import CCSD
 from pyscf.cc.uccsd import UCCSD
 
-from pyscf import scf
+from pyscf import __config__, scf
 from pyscf.afqmc import config, utils
 
 print = partial(print, flush=True)
@@ -53,14 +53,17 @@ class AFQMC:
             self.trial = None
         self.ene0 = 0.0
         self.n_batch = 1
+        self.tmpdir = __config__.TMPDIR + f"/afqmc{np.random.randint(1, int(1e6))}/"
 
     def kernel(self):
+        os.system(f"mkdir -p {self.tmpdir}")
         utils.prep_afqmc(
             self.mf_or_cc,
-            self.basis_coeff,
-            self.norb_frozen,
-            self.chol_cut,
-            self.integrals,
+            basis_coeff=self.basis_coeff,
+            norb_frozen=self.norb_frozen,
+            chol_cut=self.chol_cut,
+            integrals=self.integrals,
+            tmpdir=self.tmpdir,
         )
         options = {}
         for attr in dir(self):
@@ -75,18 +78,19 @@ class AFQMC:
                     "mpi_prefix",
                     "nproc",
                     "script",
+                    "tmpdir",
                 ]
                 and not attr.startswith("__")
                 and not callable(getattr(self, attr))
             ):
                 options[attr] = getattr(self, attr)
-        return run_afqmc(options, self.script, self.mpi_prefix, self.nproc)
+        return run_afqmc(options, self.script, self.mpi_prefix, self.nproc, self.tmpdir)
 
 
-def run_afqmc(options=None, script=None, mpi_prefix=None, nproc=None):
+def run_afqmc(options=None, script=None, mpi_prefix=None, nproc=None, tmpdir="."):
     if options is None:
         options = {}
-    with open("options.bin", "wb") as f:
+    with open(tmpdir + "/options.bin", "wb") as f:
         pickle.dump(options, f)
     if script is None:
         path = os.path.abspath(__file__)
@@ -119,11 +123,11 @@ def run_afqmc(options=None, script=None, mpi_prefix=None, nproc=None):
         else:
             mpi_prefix = ""
     os.system(
-        f"export OMP_NUM_THREADS=1; export MKL_NUM_THREADS=1; {mpi_prefix} python {script} {gpu_flag} {mpi_flag}"
+        f"export OMP_NUM_THREADS=1; export MKL_NUM_THREADS=1; {mpi_prefix} python {script} {tmpdir} {gpu_flag} {mpi_flag}"
     )
 
     try:
-        ene_err = np.loadtxt("ene_err.txt")
+        ene_err = np.loadtxt(tmpdir + "/ene_err.txt")
     except:
         print("AFQMC did not execute correctly.")
         ene_err = 0.0, 0.0

@@ -5,10 +5,13 @@ import time
 import h5py
 import numpy as np
 
+from pyscf import __config__
 from pyscf.afqmc import config
 
+tmpdir = "."
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("tmpdir")
     parser.add_argument("--use_gpu", action="store_true")
     parser.add_argument("--use_mpi", action="store_true")
     args = parser.parse_args()
@@ -18,6 +21,7 @@ if __name__ == "__main__":
     if args.use_mpi:
         assert config.afqmc_config["use_gpu"] is False, "Inter GPU MPI not supported."
         config.afqmc_config["use_mpi"] = True
+    tmpdir = args.tmpdir
 
 config.setup_jax()
 MPI = config.setup_comm()
@@ -41,7 +45,7 @@ def _prep_afqmc(options=None):
     if rank == 0:
         print(f"# Number of MPI ranks: {size}\n#")
 
-    with h5py.File("FCIDUMP_chol", "r") as fh5:
+    with h5py.File(tmpdir + "/FCIDUMP_chol", "r") as fh5:
         [nelec, nmo, ms, nchol] = fh5["header"]
         h0 = jnp.array(fh5.get("energy_core"))
         h1 = jnp.array(fh5.get("hcore")).reshape(nmo, nmo)
@@ -58,7 +62,7 @@ def _prep_afqmc(options=None):
 
     if options is None:
         try:
-            with open("options.bin", "rb") as f:
+            with open(tmpdir + "/options.bin", "rb") as f:
                 options = pickle.load(f)
         except:
             options = {}
@@ -89,7 +93,7 @@ def _prep_afqmc(options=None):
     options["n_batch"] = options.get("n_batch", 1)
 
     try:
-        with h5py.File("observable.h5", "r") as fh5:
+        with h5py.File(tmpdir + "/observable.h5", "r") as fh5:
             [observable_constant] = fh5["constant"]
             observable_op = np.array(fh5.get("op")).reshape(nmo, nmo)
             if options["walker_type"] == "uhf":
@@ -106,7 +110,7 @@ def _prep_afqmc(options=None):
     ham_data["ene0"] = options["ene0"]
 
     wave_data = {}
-    mo_coeff = jnp.array(np.load("mo_coeff.npz")["mo_coeff"])
+    mo_coeff = jnp.array(np.load(tmpdir + "/mo_coeff.npz")["mo_coeff"])
     wave_data["rdm1"] = jnp.array(
         [
             mo_coeff[0][:, : nelec_sp[0]] @ mo_coeff[0][:, : nelec_sp[0]].T,
@@ -124,7 +128,7 @@ def _prep_afqmc(options=None):
             mo_coeff[1][:, : nelec_sp[1]],
         ]
     elif options["trial"] == "noci":
-        with open("dets.pkl", "rb") as f:
+        with open(tmpdir + "/dets.pkl", "rb") as f:
             ci_coeffs_dets = pickle.load(f)
         ci_coeffs_dets = [
             jnp.array(ci_coeffs_dets[0]),
@@ -136,7 +140,7 @@ def _prep_afqmc(options=None):
         )
     elif options["trial"] == "cisd":
         try:
-            amplitudes = np.load("amplitudes.npz")
+            amplitudes = np.load(tmpdir + "/amplitudes.npz")
             ci1 = jnp.array(amplitudes["ci1"])
             ci2 = jnp.array(amplitudes["ci2"])
             trial_wave_data = {"ci1": ci1, "ci2": ci2}
@@ -146,7 +150,7 @@ def _prep_afqmc(options=None):
             raise ValueError("Trial specified as cisd, but amplitudes.npz not found.")
     elif options["trial"] == "ucisd":
         try:
-            amplitudes = np.load("amplitudes.npz")
+            amplitudes = np.load(tmpdir + "/amplitudes.npz")
             ci1a = jnp.array(amplitudes["ci1a"])
             ci1b = jnp.array(amplitudes["ci1b"])
             ci2aa = jnp.array(amplitudes["ci2aa"])
@@ -166,7 +170,7 @@ def _prep_afqmc(options=None):
             raise ValueError("Trial specified as ucisd, but amplitudes.npz not found.")
     else:
         try:
-            with open("trial.pkl", "rb") as f:
+            with open(tmpdir + "/trial.pkl", "rb") as f:
                 [trial, trial_wave_data] = pickle.load(f)
             wave_data.update(trial_wave_data)
             if rank == 0:
@@ -240,12 +244,21 @@ if __name__ == "__main__":
         )
     else:
         e_afqmc, err_afqmc = driver.afqmc(
-            ham_data, ham, prop, trial, wave_data, sampler, observable, options, MPI
+            ham_data,
+            ham,
+            prop,
+            trial,
+            wave_data,
+            sampler,
+            observable,
+            options,
+            MPI,
+            tmpdir=tmpdir,
         )
     comm.Barrier()
     end = time.time()
     if rank == 0:
         print(f"ph_afqmc walltime: {end - init}", flush=True)
-        np.savetxt("ene_err.txt", np.array([e_afqmc, err_afqmc]))
+        np.savetxt(tmpdir + "/ene_err.txt", np.array([e_afqmc, err_afqmc]))
     comm.Barrier()
     MPI.Finalize()
