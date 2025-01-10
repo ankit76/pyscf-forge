@@ -3,7 +3,7 @@ import pickle
 import shlex
 import subprocess
 from functools import partial
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
 from pyscf.cc.ccsd import CCSD
@@ -16,6 +16,66 @@ print = partial(print, flush=True)
 
 
 class AFQMC:
+    """
+    AFQMC class.
+
+    Attributes:
+        mf_or_cc : Union[scf.uhf.UHF, scf.rhf.RHF, scf.rohf.ROHF, CCSD, UCCSD]
+            The mean-field or CCSD object.
+        basis_coeff : None
+            Basis coefficients used for AFQMC propagation.
+        norb_frozen : int
+            Number of frozen orbitals.
+        chol_cut : float
+            Cholesky cut-off.
+        integrals : None
+            Dictionary of integrals in an orthonormal basis, {"h0": enuc, "h1": h1e, "h2": eri}.
+        mpi_prefix : None
+            MPI prefix, used to launch MPI processes.
+        nproc : int
+            Number of processes, if using MPI.
+        dt : float
+            AFQMC propagation time step.
+        n_walkers : int
+            Number of walkers.
+        n_prop_steps : int
+            Number of propagation steps.
+        n_ene_blocks : int
+            Number of energy blocks.
+        n_sr_blocks : int
+            Number of stochastic reconfiguration blocks.
+        n_blocks : int
+            Number of blocks.
+        n_ene_blocks_eql : int
+            Number of energy blocks for equilibration.
+        n_sr_blocks_eql : int
+            Number of stochastic reconfiguration blocks for equilibration.
+        seed : int
+            Random seed.
+        n_eql : int
+            Number of equilibration blocks.
+        ad_mode : None
+            AD mode.
+        orbital_rotation : bool
+            Orbital rotation option for AD.
+        do_sr : bool
+            Stochastic reconfiguration, relevant for AD.
+        walker_type : str
+            Walker type, "rhf" or "uhf".
+        symmetry : bool
+            Symmetry, relevant for AD.
+        save_walkers : bool
+            Save walkers.
+        trial : str
+            Trial.
+        ene0 : float
+            Initial energy used in free projection.
+        n_batch : int
+            Number of batches, relevant for GPU calculations.
+        tmpdir : str
+            Temporary directory.
+    """
+
     def __init__(
         self, mf_or_cc: Union[scf.uhf.UHF, scf.rhf.RHF, scf.rohf.ROHF, CCSD, UCCSD]
     ):
@@ -26,7 +86,6 @@ class AFQMC:
         self.integrals = None  # custom integrals
         self.mpi_prefix = None
         self.nproc = 1
-        self.script = None
         self.dt = 0.005
         self.n_walkers = 50
         self.n_prop_steps = 50
@@ -57,7 +116,14 @@ class AFQMC:
         self.n_batch = 1
         self.tmpdir = __config__.TMPDIR + f"/afqmc{np.random.randint(1, int(1e6))}/"
 
-    def kernel(self):
+    def kernel(self, dry_run=False):
+        """
+        Run AFQMC.
+
+        Args:
+            dry_run : bool
+                If True, writes input files like integrals to disk, useful for large calculations where one would like to run the trial generation and AFQMC calculations on different machines, on CPU and GPU, for example.
+        """
         os.system(f"mkdir -p {self.tmpdir}")
         utils.prep_afqmc(
             self.mf_or_cc,
@@ -79,24 +145,54 @@ class AFQMC:
                     "integrals",
                     "mpi_prefix",
                     "nproc",
-                    "script",
                 ]
                 and not attr.startswith("__")
                 and not callable(getattr(self, attr))
             ):
                 options[attr] = getattr(self, attr)
-        return run_afqmc(options, self.script, self.mpi_prefix, self.nproc, self.tmpdir)
+        with open(self.tmpdir + "/options.bin", "wb") as f:
+            pickle.dump(options, f)
+        if dry_run:
+            with open("tmpdir.txt", "w") as f:
+                f.write(self.tmpdir)
+            return self.tmpdir
+        else:
+            return run_afqmc(
+                mpi_prefix=self.mpi_prefix, nproc=self.nproc, tmpdir=self.tmpdir
+            )
 
 
-def run_afqmc(options=None, script=None, mpi_prefix=None, nproc=None, tmpdir="."):
-    if options is None:
-        options = {}
-    with open(tmpdir + "/options.bin", "wb") as f:
-        pickle.dump(options, f)
-    if script is None:
-        path = os.path.abspath(__file__)
-        dir_path = os.path.dirname(path)
-        script = f"{dir_path}/mpi_jax.py"
+def run_afqmc(
+    options: Optional[dict] = None,
+    mpi_prefix: Optional[str] = None,
+    nproc: Optional[int] = None,
+    tmpdir: Optional[str] = None,
+):
+    """
+    Run AFQMC calculation from pre-generated input files.
+
+    Parameters:
+        options : dict, optional
+            Options for AFQMC.
+        mpi_prefix : str, optional
+            MPI prefix, used to launch MPI processes.
+        nproc : int, optional
+            Number of processes, if using MPI.
+        tmpdir : str, optional
+            Temporary directory where the input files are stored.
+    """
+    if tmpdir is None:
+        try:
+            with open("tmpdir.txt", "r") as f:
+                tmpdir = f.read().strip()
+        except:
+            tmpdir = "."
+    if options is not None:
+        with open(tmpdir + "/options.bin", "wb") as f:
+            pickle.dump(options, f)
+    path = os.path.abspath(__file__)
+    dir_path = os.path.dirname(path)
+    script = f"{dir_path}/mpi_jax.py"
     use_gpu = config.afqmc_config["use_gpu"]
     use_mpi = config.afqmc_config["use_mpi"]
 
