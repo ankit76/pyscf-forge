@@ -1,5 +1,7 @@
 import os
 import pickle
+import shlex
+import subprocess
 from functools import partial
 from typing import Union
 
@@ -121,9 +123,29 @@ def run_afqmc(options=None, script=None, mpi_prefix=None, nproc=None, tmpdir="."
 
         else:
             mpi_prefix = ""
-    os.system(
-        f"export OMP_NUM_THREADS=1; export MKL_NUM_THREADS=1; {mpi_prefix} python {script} {tmpdir} {gpu_flag} {mpi_flag}"
+    env = os.environ.copy()
+    env["OMP_NUM_THREADS"] = "1"
+    env["MKL_NUM_THREADS"] = "1"
+    cmd = shlex.split(f"{mpi_prefix} python {script} {tmpdir} {gpu_flag} {mpi_flag}")
+    # Launch process with real-time output
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+        env=env,
+        bufsize=1,
     )
+    # Print output in real-time
+    while True:
+        output = process.stdout.readline()
+        if output == "" and process.poll() is not None:
+            break
+        if output:
+            print(output, end="")
+    return_code = process.poll()
+    if return_code != 0:
+        raise subprocess.CalledProcessError(return_code, cmd)
 
     try:
         ene_err = np.loadtxt(tmpdir + "/ene_err.txt")
