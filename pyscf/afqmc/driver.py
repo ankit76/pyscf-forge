@@ -97,6 +97,17 @@ def afqmc(
         n_sr_blocks=n_sr_blocks_eql,
         n_blocks=neql,
     )
+    global_block_weights_eq = None
+    global_block_energies_eq = None
+    if rank == 0:
+        global_block_weights_eq = np.zeros(size * sampler_eq.n_blocks)
+        global_block_energies_eq = np.zeros(size * sampler_eq.n_blocks)
+        gather_energies = np.array([prop_data["e_estimate"]] * size, dtype="float32")
+        gather_weights = np.array(
+            [jnp.sum(prop_data["weights"])] * size, dtype="float32"
+        )
+        global_block_weights_eq[:size] = gather_weights
+        global_block_energies_eq[:size] = gather_energies
 
     for n in range(1, sampler_eq.n_blocks + 1):
         block_energy_n, prop_data = sampler_eq.propagate_phaseless(
@@ -104,39 +115,31 @@ def afqmc(
         )
         block_energy_n = np.array([block_energy_n], dtype="float32")
         block_weight_n = np.array([jnp.sum(prop_data["weights"])], dtype="float32")
-        block_weighted_energy_n = np.array(
-            [block_energy_n * block_weight_n], dtype="float32"
-        )
-        total_block_energy_n = np.zeros(1, dtype="float32")
-        total_block_weight_n = np.zeros(1, dtype="float32")
-        comm.Reduce(
-            [block_weighted_energy_n, MPI.FLOAT],
-            [total_block_energy_n, MPI.FLOAT],
-            op=MPI.SUM,
-            root=0,
-        )
-        comm.Reduce(
-            [block_weight_n, MPI.FLOAT],
-            [total_block_weight_n, MPI.FLOAT],
-            op=MPI.SUM,
-            root=0,
-        )
+        gather_weights = None
+        gather_energies = None
         if rank == 0:
-            block_weight_n = total_block_weight_n
-            block_energy_n = total_block_energy_n / total_block_weight_n
-        comm.Bcast(block_weight_n, root=0)
+            gather_weights = np.zeros(size, dtype="float32")
+            gather_energies = np.zeros(size, dtype="float32")
+        comm.Gather(block_weight_n, gather_weights, root=0)
+        comm.Gather(block_energy_n, gather_energies, root=0)
+        block_energy_n = 0.0
+        if rank == 0:
+            global_block_weights_eq[n * size : (n + 1) * size] = gather_weights
+            global_block_energies_eq[n * size : (n + 1) * size] = gather_energies
+            assert gather_weights is not None
+            block_energy_n = np.sum(gather_weights * gather_energies) / np.sum(
+                gather_weights
+            )
         comm.Bcast(block_energy_n, root=0)
         prop_data = propagator.orthonormalize_walkers(prop_data)
         prop_data = propagator.stochastic_reconfiguration_global(prop_data, comm)
-        prop_data["e_estimate"] = (
-            0.9 * prop_data["e_estimate"] + 0.1 * block_energy_n[0]
-        )
+        prop_data["e_estimate"] = 0.9 * prop_data["e_estimate"] + 0.1 * block_energy_n
 
         comm.Barrier()
         if rank == 0:
             if n % (max(sampler_eq.n_blocks // 5, 1)) == 0:
                 print(
-                    f"# {n:5d}      {block_energy_n[0]:.9e}     {time.time() - init:.2e} ",
+                    f"# {n:5d}      {block_energy_n:.9e}     {time.time() - init:.2e} ",
                     flush=True,
                 )
         comm.Barrier()
@@ -413,6 +416,20 @@ def afqmc(
             f"# Number of outliers in post: {global_block_weights.size - samples_clean.shape[0]} "
         )
         np.savetxt(tmpdir + "/samples.dat", samples_clean)
+        assert global_block_weights_eq is not None
+        assert global_block_energies_eq is not None
+        np.savetxt(
+            tmpdir + "/samples_all.dat",
+            np.stack(
+                (
+                    np.concatenate((global_block_weights_eq, samples_clean[:, 0])),
+                    np.concatenate((global_block_energies_eq, samples_clean[:, 1])),
+                    np.concatenate(
+                        (np.zeros_like(global_block_energies_eq), samples_clean[:, 2])
+                    ),
+                )
+            ).T,
+        )
         global_block_weights = samples_clean[:, 0]
         global_block_energies = samples_clean[:, 1]
         global_block_observables = samples_clean[:, 2]
