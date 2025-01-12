@@ -4,7 +4,6 @@ from functools import partial
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import h5py
-import jax.numpy as jnp
 import numpy as np
 import scipy
 from pyscf.cc.ccsd import CCSD
@@ -324,8 +323,8 @@ def solveLS(T, X1, X2):
     """
 
     S = np.einsum("Pa,Qa->PQ", X1, X1) * np.einsum("Pb,Qb->PQ", X2, X2)
-    X12 = jnp.einsum("Pa,Pb->abP", X1, X2)
-    Stilde = jnp.einsum("abP, abM->PM", X12, T)
+    X12 = np.einsum("Pa,Pb->abP", X1, X2)
+    Stilde = np.einsum("abP, abM->PM", X12, T)
 
     L = scipy.linalg.cholesky(S, lower=True)
     Xi = scipy.linalg.cho_solve((L, True), Stilde, overwrite_b=True)
@@ -351,12 +350,12 @@ def solveLS_twoSided(T, X1, X2):
     S = np.einsum("Pa,Qa->PQ", X1, X1) * np.einsum("Pb,Qb->PQ", X2, X2)
     L = scipy.linalg.cholesky(S, lower=True)
 
-    X12 = jnp.einsum("Pa,Pb->abP", X1, X2)
-    E = jnp.einsum("abP, abcd->Pcd", X12, T).reshape(X1.shape[0], -1)
+    X12 = np.einsum("Pa,Pb->abP", X1, X2)
+    E = np.einsum("abP, abcd->Pcd", X12, T).reshape(X1.shape[0], -1)
 
     E = scipy.linalg.cho_solve((L, True), E).reshape(-1, T.shape[2], T.shape[3])
 
-    E = jnp.einsum("Pcd, cdQ->PQ", E, X12).T
+    E = np.einsum("Pcd, cdQ->PQ", E, X12).T
     V = scipy.linalg.cho_solve((L, True), E)
 
     ##symmetrize it

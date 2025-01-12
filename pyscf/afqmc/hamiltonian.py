@@ -1,10 +1,7 @@
 from dataclasses import dataclass
 from functools import partial
 
-import jax
-import jax.numpy as jnp
-from jax import jit
-
+from pyscf.afqmc.jax_compat import jax, jit, jnp
 from pyscf.afqmc.propagation import propagator
 from pyscf.afqmc.wavefunctions import wave_function
 

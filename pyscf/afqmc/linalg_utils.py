@@ -1,8 +1,8 @@
 from functools import partial
 
-import jax.numpy as jnp
 import numpy as np
-from jax import custom_jvp, jit, lax, vmap
+
+from pyscf.afqmc.jax_compat import custom_jvp, jit, jnp, lax, vmap
 
 print = partial(print, flush=True)
 

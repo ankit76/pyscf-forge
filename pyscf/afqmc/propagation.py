@@ -4,12 +4,8 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any, List, Optional, Sequence, Tuple, Union
 
-import jax
-import jax.numpy as jnp
-import jax.scipy as jsp
-from jax import jit, lax, random, vmap
-
 from pyscf.afqmc import linalg_utils, sr, wavefunctions
+from pyscf.afqmc.jax_compat import jax, jit, jnp, jsp, lax, random, vmap
 from pyscf.afqmc.wavefunctions import wave_function
 
 

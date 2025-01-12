@@ -3,12 +3,10 @@ import time
 from functools import partial
 from typing import List, Optional, Union
 
-import jax
-import jax.numpy as jnp
 import numpy as np
-from jax import dtypes, jvp, random, vjp
 
 from pyscf.afqmc import hamiltonian, propagation, sampling, stat_utils, wavefunctions
+from pyscf.afqmc.jax_compat import dtypes, jax, jnp, jvp, random, vjp
 
 print = partial(print, flush=True)
 
@@ -203,13 +201,14 @@ def afqmc(
         )
 
     prop_data_tangent = {}
-    for x in prop_data:
-        if isinstance(prop_data[x], list):
-            prop_data_tangent[x] = [np.zeros_like(y) for y in prop_data[x]]
-        elif prop_data[x].dtype == "uint32":
-            prop_data_tangent[x] = np.zeros(prop_data[x].shape, dtype=dtypes.float0)
-        else:
-            prop_data_tangent[x] = np.zeros_like(prop_data[x])
+    if options["ad_mode"] == "forward":
+        for x in prop_data:
+            if isinstance(prop_data[x], list):
+                prop_data_tangent[x] = [np.zeros_like(y) for y in prop_data[x]]
+            elif prop_data[x].dtype == "uint32":
+                prop_data_tangent[x] = np.zeros(prop_data[x].shape, dtype=dtypes.float0)
+            else:
+                prop_data_tangent[x] = np.zeros_like(prop_data[x])
     block_rdm1_n = np.zeros_like(ham_data["h1"])
     block_rdm2_n = None
     if options["ad_mode"] == "2rdm":

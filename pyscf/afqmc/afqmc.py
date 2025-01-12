@@ -195,6 +195,22 @@ def run_afqmc(
     script = f"{dir_path}/mpi_jax.py"
     use_gpu = config.afqmc_config["use_gpu"]
     use_mpi = config.afqmc_config["use_mpi"]
+    use_jax = config.afqmc_config["use_jax"]
+
+    if use_jax is not False:
+        try:
+            import jax
+
+            use_jax = True
+            # print jax version
+            print(f"# JAX {jax.__version__} found, using JAX.")
+        except ImportError:
+            use_jax = False
+            assert use_gpu is False, "GPU calculations only supported with JAX."
+            print(f"# Unable to import jax.")
+            print(
+                f"# Running in numpy-only mode. Some features may be unavailable or considerably slower. Consider installing JAX."
+            )
 
     if not use_gpu and config.afqmc_config["use_mpi"] is not False:
         try:
@@ -211,6 +227,7 @@ def run_afqmc(
         # use_mpi = False
     gpu_flag = "--use_gpu" if use_gpu else ""
     mpi_flag = "--use_mpi" if use_mpi else ""
+    jax_flag = "--use_jax" if use_jax else ""
     if mpi_prefix is None:
         if use_mpi:
             mpi_prefix = "mpirun "
@@ -222,7 +239,9 @@ def run_afqmc(
     env = os.environ.copy()
     env["OMP_NUM_THREADS"] = "1"
     env["MKL_NUM_THREADS"] = "1"
-    cmd = shlex.split(f"{mpi_prefix} python {script} {tmpdir} {gpu_flag} {mpi_flag}")
+    cmd = shlex.split(
+        f"{mpi_prefix} python {script} {tmpdir} {gpu_flag} {mpi_flag} {jax_flag}"
+    )
     # Launch process with real-time output
     process = subprocess.Popen(
         cmd,

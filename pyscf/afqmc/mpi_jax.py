@@ -13,12 +13,18 @@ if __name__ == "__main__":
     parser.add_argument("tmpdir")
     parser.add_argument("--use_gpu", action="store_true")
     parser.add_argument("--use_mpi", action="store_true")
+    parser.add_argument("--use_jax", action="store_true")
     args = parser.parse_args()
 
+    if args.use_jax:
+        config.afqmc_config["use_jax"] = True
     if args.use_gpu:
+        assert (
+            config.afqmc_config["use_jax"] == True
+        ), "GPU calculations only supported with Jax."
         config.afqmc_config["use_gpu"] = True
     if args.use_mpi:
-        assert config.afqmc_config["use_gpu"] is False, "Inter GPU MPI not supported."
+        assert config.afqmc_config["use_gpu"] == False, "Inter GPU MPI not supported."
         config.afqmc_config["use_mpi"] = True
     tmpdir = args.tmpdir
 
@@ -30,12 +36,8 @@ rank = comm.Get_rank()
 
 from functools import partial
 
-import driver
-import hamiltonian
-import propagation
-import sampling
-import wavefunctions
-from jax import numpy as jnp
+from pyscf.afqmc import driver, hamiltonian, propagation, sampling, wavefunctions
+from pyscf.afqmc.jax_compat import jnp
 
 print = partial(print, flush=True)
 
@@ -78,6 +80,8 @@ def _prep_afqmc(options=None):
     options["n_eql"] = options.get("n_eql", 1)
     options["ad_mode"] = options.get("ad_mode", None)
     assert options["ad_mode"] in [None, "forward", "reverse", "2rdm"]
+    if options["ad_mode"] in ["forward", "reverse", "2rdm"]:
+        assert config.afqmc_config["use_jax"] == True, "AD only supported with JAX."
     options["orbital_rotation"] = options.get("orbital_rotation", True)
     options["do_sr"] = options.get("do_sr", True)
     options["walker_type"] = options.get("walker_type", "rhf")

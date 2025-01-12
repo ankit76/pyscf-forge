@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-afqmc_config = {"use_gpu": False, "use_mpi": None}
+afqmc_config = {"use_gpu": False, "use_mpi": None, "use_jax": None}
 
 
 class not_a_comm:
@@ -50,36 +50,37 @@ class not_MPI:
 
 
 def setup_jax():
-    from jax import config
+    if afqmc_config["use_jax"] == True:
+        from jax import config
 
-    config.update("jax_enable_x64", True)
-    if afqmc_config["use_gpu"] == True:
-        config.update("jax_platform_name", "gpu")
-        os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
-        os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"
-        # TODO: add gpu performance xla flags
-        hostname = socket.gethostname()
-        system_type = platform.system()
-        machine_type = platform.machine()
-        processor = platform.processor()
-        print(f"# Hostname: {hostname}")
-        print(f"# System Type: {system_type}")
-        print(f"# Machine Type: {machine_type}")
-        print(f"# Processor: {processor}")
-        uname_info = platform.uname()
-        print("# Using GPU.")
-        print(f"# System: {uname_info.system}")
-        print(f"# Node Name: {uname_info.node}")
-        print(f"# Release: {uname_info.release}")
-        print(f"# Version: {uname_info.version}")
-        print(f"# Machine: {uname_info.machine}")
-        print(f"# Processor: {uname_info.processor}")
-    else:
-        afqmc_config["use_gpu"] = False
-        config.update("jax_platform_name", "cpu")
-        os.environ["XLA_FLAGS"] = (
-            "--xla_force_host_platform_device_count=1 --xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1"
-        )
+        config.update("jax_enable_x64", True)
+        if afqmc_config["use_gpu"] == True:
+            config.update("jax_platform_name", "gpu")
+            os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+            os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"
+            # TODO: add gpu performance xla flags
+            hostname = socket.gethostname()
+            system_type = platform.system()
+            machine_type = platform.machine()
+            processor = platform.processor()
+            print(f"# Hostname: {hostname}")
+            print(f"# System Type: {system_type}")
+            print(f"# Machine Type: {machine_type}")
+            print(f"# Processor: {processor}")
+            uname_info = platform.uname()
+            print("# Using GPU.")
+            print(f"# System: {uname_info.system}")
+            print(f"# Node Name: {uname_info.node}")
+            print(f"# Release: {uname_info.release}")
+            print(f"# Version: {uname_info.version}")
+            print(f"# Machine: {uname_info.machine}")
+            print(f"# Processor: {uname_info.processor}")
+        else:
+            afqmc_config["use_gpu"] = False
+            config.update("jax_platform_name", "cpu")
+            os.environ["XLA_FLAGS"] = (
+                "--xla_force_host_platform_device_count=1 --xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1"
+            )
 
 
 def setup_comm():

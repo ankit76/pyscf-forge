@@ -2,12 +2,9 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any, Tuple
 
-import jax
-import jax.numpy as jnp
-from jax import checkpoint, jit, lax, random
-
 from pyscf.afqmc import linalg_utils
 from pyscf.afqmc.hamiltonian import hamiltonian
+from pyscf.afqmc.jax_compat import checkpoint, jax, jit, jnp, lax, random
 from pyscf.afqmc.propagation import propagator
 from pyscf.afqmc.wavefunctions import wave_function
 

@@ -1,6 +1,6 @@
-import jax.numpy as jnp
 import numpy as np
-from jax import jit, vmap
+
+from pyscf.afqmc.jax_compat import jit, jnp, vmap
 
 
 # this uses numpy but is only called once after each block
